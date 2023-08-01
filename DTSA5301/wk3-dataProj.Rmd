@@ -19,10 +19,14 @@ library(lubridate)
 # COVID Info intro
 
 This file follows the examples shown during lectures for "Data Science as a field" course.
+The goal is to import, tidy and analyze the COVID19 dataset from the Johns Hopkins Github site.
 
-Command output is included in most cases for educational purposes, so the whole report looks a bit untidy.
+Command output is included in most cases for educational purposes, so the whole report looks a bit overwhelming.
 
-Data files are loaded from this base URL "<https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/>"
+Data files are loaded from Johns Hopkins Github site, containing historical 
+COVID19 dataset.
+
+This is the base URL "<https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/>"
 
 individual data files:
 
