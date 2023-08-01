@@ -33,6 +33,30 @@ individual data files:
 
 And this lookup file "<https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv>"
 
+### Possible sources of bias
+
+Bias can appear from personal beliefs of the data scientist performing
+the analysis, also the way the source data was gathered, and how the
+report was designed, its goals and requested analysis criteria from the
+customer. All this can significantly influence the outcome. Usually bias
+comes from deep beliefs, based on ancient survival mechanisms. They
+usually influence someones decisions on unconscious level, and
+additional steps needs to be taken to identify and prevent bias.
+
+### Possible personal bias in the analysis
+
+I assume my specific gender, race, previous knowledge of some geo 
+specific rumors (safety, wealth) and similar beliefs, could have
+impacted the way I approached this project.
+
+### Personal bias mitigation steps taken
+
+Knowing that some topics could be biased I took additional steps to
+ensure that my analysis treats them fairly and universally. For example,
+I ensured that all of data
+were analysed equally, without adding any additional weights or
+parameters, not relevant to the study performed.
+
 ```{r covid_init}
 url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
 
