@@ -1,0 +1,249 @@
+---
+title: "DTSA 5301, week3 - NYPD project"
+author: "Serg Prokhorov"
+date: "2023-06-20"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+
+
+```
+
+# NYPD dataset simple analysis
+
+## Project goal
+
+This project summarises knowledge acquired during week 3 of **Data
+Science as a Field** course from CU Boulder. As we were mostly focused
+on introducing the basic functionality of R Markup and R Studio
+environment in the course so far, the following document serves mostly
+to demonstrate basic data analysis approaches, without deep reliance on
+the data meaning. I assume we'll address this topic on later stages of
+our education.
+
+## Data source
+
+The source files for the project are from official U.S. Government's
+Open Data repository <https://catalog.data.gov/dataset>, specifically
+the dataset titled **NYPD Shooting Incident Data (Historic)**.
+
+Data file address is
+<https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD>
+and it can be queried on-line later for report results reproducibility.
+
+## Load data from URLs
+
+```{r nypd_import}
+
+nypd_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+nypd_data <- read_csv(nypd_url, show_col_types = FALSE)
+
+```
+
+## Summary of source NYPD data
+
+Below is a summary of loaded dataset structure:
+
+```{r nypd_summary_show}
+summary(nypd_data)
+
+```
+
+## Clean up of NYPD data
+
+To clean up source data we perform following transformations:
+
+-   convert date field (OCCUR_DATE) format from text to date
+
+-   remove unused in further analysis columns (date, time, geo-data,
+    misc. attributes)
+
+```{r nypd_cleanup}
+nypd_data_clean <- nypd_data %>%
+  # date type conversion
+  mutate(Date = mdy(OCCUR_DATE)) %>%
+  # remove columns
+  select(-c(
+    # date - time, already extracted the date
+    OCCUR_DATE, OCCUR_TIME,
+    # geo part - not needed
+    X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat, 
+    # not needed now (probably)
+    LOC_CLASSFCTN_DESC, INCIDENT_KEY
+    )
+  )
+  
+```
+
+## Summary of data after cleaning up
+
+```{r clean_data_summary}
+summary(nypd_data_clean)
+
+```
+
+**If some data is missing** on later stage of project, I will come back
+and correct the transformation procedures, probably adding missing data
+from additional datasets, how it was shown in lecture with Population
+data.
+
+## Data visualization and analysis
+
+To summarize and enrich data following steps are performed:
+
+-   Aggregate accident cases by territory and date into **nypd_by_terr**
+-   Summarize all territories by date into **nypd_by_date**
+
+The **main distinction of this analysis** from shown in the lectures is
+that in addition to summing or finding extremes (min/max) during
+aggregation, now we perform counting of rows merged during aggregation
+using the *n()* function.
+
+```{r group_data}
+
+nypd_by_terr <- nypd_data_clean %>%
+  group_by( BORO, Date) %>%
+  summarise(cases = n() ) %>% # n() to count rows in group
+  ungroup()
+
+nypd_by_date <- nypd_by_terr %>%
+  group_by(Date) %>%
+  summarize(cases = sum(cases))
+
+```
+
+Simple visualization is provided below to get a first glance on the
+nature of the data aggregation results:
+
+```{r visualize}
+nypd_by_date %>%
+  filter(cases > 0) %>%
+  ggplot(aes(x = Date, y = cases)) +
+  geom_line(aes(color = "cases")) +
+  geom_point(aes(color = "cases")) +
+
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = "Daily accidents in NY", y = NULL)
+```
+
+```{r visualize_for_distr}
+terr <- "BROOKLYN"
+
+nypd_by_terr %>%
+  filter(cases > 0) %>%
+  filter(BORO == terr) %>%
+  ggplot(aes(x = Date, y = cases)) +
+  geom_line(aes(color = "new_cases")) +
+  geom_point(aes(color = "new_cases")) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("Accidents in ", terr), y = NULL)
+
+```
+
+## Further analysis
+
+For further analysis we enrich source data with calculation of daily
+dynamics (difference with previous day) for number of accidents, and
+visualizing the result:
+
+```{r enrich_data}
+nypd_by_date <- nypd_by_date %>%
+  mutate(NewCases = cases - lag(cases))
+
+nypd_by_date %>%
+  ggplot(aes(x = Date, y = cases)) +
+  geom_point(aes(color = "cases")) +
+  geom_point(aes(y = NewCases, color = "new_cases")) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = "Daily accidents in NY with dynamics", y = NULL)
+```
+
+## First conclusions
+
+Looking at the new cases/accidents we can see repeatable trends of
+growth and decline in cases dynamics, which probably can be further
+analysed to either identify source data discrepancies, or by adding
+additional factors into analysts, try to identify additional
+dependencies.
+
+### Predictive modeling of data
+
+We'll build a model to predict cases count and visualize both predicted
+and actual values on same graph
+
+```{r modeling}
+mod <- lm(cases ~ Date, data = nypd_by_date)
+
+nypd_by_date_w_pred <- nypd_by_date %>%
+  mutate(pred = predict(mod))
+
+nypd_by_date_w_pred %>%
+  ggplot(  ) +
+  geom_point(aes(x = Date, y = cases), color = "blue") +
+  geom_point(aes(x = Date, y = pred), color = "red")
+```
+
+Looking on these two graphs, it's clear that the model type used
+provides over-simplified representation of data trends in source data,
+although there's definitely a correlation present. I assume further
+courses will introduce us to more complicated modeling techniques,
+allowing to get more correct predictions.
+
+## Conclusions and Bias Identification
+
+### Conclusion to the project report
+
+Working on the NYPD data set, because of significant amount of data
+attributes collected with each incident, demonstrated several
+possibilities to analyse data by grouping various attributes. Also, the
+fact that we removed most of existing attributes, for the sake of simple
+demonstration of data processing concepts taught in this class, hints
+that there are many opportunities for additional analysis, would the
+task at hand be more related to real world needs - for example, use of
+demographics or spatial data.
+
+### Possible sources of bias
+
+Bias can appear from personal beliefs of the data scientist performing
+the analysis, also the way the source data was gathered, and how the
+report was designed, its goals and requested analysis criteria from the
+customer. All this can significantly influence the outcome. Usually bias
+comes from deep beliefs, based on ancient survival mechanisms. They
+usually influence someones decisions on unconscious level, and
+additional steps needs to be taken to identify and prevent bias.
+
+### Possible personal bias in the analysis
+
+I assume my specific gender, race, previous knowledge of some city
+districts rumors (safety, wealth) and similar beliefs, could have
+impacted the way I approached this project.
+
+### Personal bias mitigation steps taken
+
+Knowing that some topics could be biased I took additional steps to
+ensure that my analysis treats them fairly and universally. For example,
+when doing aggregation by city districts, I ensured that all of them
+were analysed equally, without adding any additional weights or
+parameters, not relevant to the study performed.
+
+# Appendix A - session info
+
+The report was generated using the following software/libraries:
+
+```{r final, eval=TRUE}
+sessionInfo()
+```

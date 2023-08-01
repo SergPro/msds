@@ -1,0 +1,299 @@
+---
+title: "wk3-NYPD project"
+author: "Serg"
+date: "2023-06-08"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+
+
+```
+
+``` {r covid_init}
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+
+file_names <- c(
+  "time_series_covid19_confirmed_global.csv",
+  "time_series_covid19_deaths_global.csv",
+  "time_series_covid19_confirmed_US.csv",
+  "time_series_covid19_deaths_US.csv"
+)
+urls <- str_c(url_in, file_names)
+
+uid_data_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+```
+
+Load data from URLs
+
+``` {r import_data}
+global_cases <- read_csv(urls[1])
+global_deaths <- read_csv(urls[2], show_col_types = FALSE)
+us_cases <- read_csv(urls[3])
+us_deaths <- read_csv(urls[4])
+
+uid_data <- read_csv(uid_data_url) %>%
+  select(-c(Lat,Long_,Combined_Key,iso2, iso3, Admin2, code3))
+```
+``` {r nypd_import}
+
+nypd_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+nypd_data <- read_csv(nypd_url)
+
+```
+
+
+Clean up data
+
+``` {r tidy_global_data}
+global_cases <- global_cases %>%
+  pivot_longer(
+    cols = -c(
+      `Province/State`,
+      `Country/Region`,   
+      Lat,   Long
+    ),
+    names_to = "date",
+    values_to = "cases"
+  ) %>%
+  select(-c(Lat ,Long))
+
+global_deaths <- global_deaths %>%
+  pivot_longer(
+    cols = -c(
+      `Province/State`,
+      `Country/Region`,   
+      Lat,   Long
+    ),
+    names_to = "date",
+    values_to = "deaths"
+  ) %>%
+  select(-c(Lat ,Long))
+
+US_cases <- us_cases %>%
+  pivot_longer(
+    cols = -(UID:Combined_Key),
+    names_to = "date",
+    values_to = "cases"
+  ) %>%
+  select(Admin2:cases) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat, Long_))
+
+US_deaths <- us_deaths %>%
+  pivot_longer(
+    cols = -(UID:Population),
+    names_to = "date",
+    values_to = "deaths"
+  ) %>%
+  select(Admin2:deaths) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat, Long_))
+
+US <- US_cases %>%
+  full_join(US_deaths)
+```
+
+Transform data
+
+``` {r transform_global}
+# rename cols ,for convenience & fix data format
+global_data <- global_cases %>%
+  full_join(global_deaths) %>%
+  rename(
+    Country_Region = `Country/Region`,
+    Province_State = `Province/State`
+  ) %>%
+  mutate(date = mdy(date))
+  
+# remove rows with no cases
+global_data <- global_data  %>%
+  filter(cases > 0)
+
+# add calculated "combined key" col
+global_data <- global_data  %>%
+  unite(
+    "Combined_Key",
+    c(Province_State, Country_Region),
+    sep = ", ",
+    na.rm = TRUE,
+    remove = FALSE
+  )
+
+# join GLobal with population data
+global_data <- global_data %>%
+  left_join(uid_data, by = c("Province_State", "Country_Region")) %>%
+  select(-c(UID, FIPS)) %>%
+  select(
+    Province_State,
+    Country_Region,
+    date,
+    cases,
+    deaths,
+    Population,
+    Combined_Key
+  )
+```
+
+``` {r enrich data}
+US_by_state <- US %>%
+  group_by( Province_State, Country_Region, date) %>%
+  summarise(cases = sum(cases), 
+            deaths = sum(deaths),
+            Population = sum(Population)
+  ) %>%
+  mutate(deaths_per_mill = deaths * 1000000 / Population) %>%
+  select(Province_State, Country_Region, date,
+         cases, deaths, deaths_per_mill, Population) %>%
+  ungroup()
+
+US_totals <- US_by_state %>%
+  group_by( Country_Region, date) %>%
+  summarise(cases = sum(cases), 
+            deaths = sum(deaths),
+            Population = sum(Population)
+  ) %>%
+  mutate(deaths_per_mill = deaths * 1000000 / Population) %>%
+  select(Country_Region, date,
+         cases, deaths, deaths_per_mill, Population) %>%
+  ungroup()
+
+```
+
+``` {r visualize_us}
+US_totals %>%
+  filter(cases > 0) %>%
+  ggplot(aes(x = date, y = cases)) +
+  geom_line(aes(color = "cases")) +
+  geom_point(aes(color = "cases")) +
+  geom_line(aes(y = deaths, color = "deaths")) +
+  geom_point(aes(y = deaths, color = "deaths")) +
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = "COVID19 in US", y = NULL)
+
+```
+
+``` {r enrich_us }
+US_by_state <- US_by_state %>%
+  mutate(new_cases = cases - lag(cases),
+         new_deaths = deaths - lag(deaths))
+
+US_totals <- US_totals %>%
+  mutate(new_cases = cases - lag(cases),
+         new_deaths = deaths - lag(deaths))
+
+```
+
+Graph data of new cases / deaths for whole US
+``` {r visualize_us2}
+
+US_totals %>%
+  filter(cases > 0) %>%
+  ggplot(aes(x = date, y = new_cases)) +
+  geom_line(aes(color = "new_cases")) +
+  geom_point(aes(color = "new_cases")) +
+  geom_line(aes(y = new_deaths, color = "new_deaths")) +
+  geom_point(aes(y = new_deaths, color = "new_deaths")) +
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = "COVID19 in US", y = NULL)
+
+```
+Graph data of new cases / deaths for a state
+``` {r visualize_us3}
+state <- "New York"
+
+US_by_state %>%
+  #filter(cases > 0) %>%
+  filter(Province_State == state) %>%
+  ggplot(aes(x = date, y = new_cases)) +
+  geom_line(aes(color = "new_cases")) +
+  geom_point(aes(color = "new_cases")) +
+  geom_line(aes(y = new_deaths, color = "new_deaths")) +
+  geom_point(aes(y = new_deaths, color = "new_deaths")) +
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90)) +
+  labs(title = str_c("COVID19 in ", state), y = NULL)
+
+US_state_totals <- US_by_state %>%
+  group_by( Province_State) %>%
+  summarise(cases = max(cases), 
+            deaths = max(deaths),
+            population = max(Population),
+            cases_by_thou = 1000 * cases / population,
+            deaths_by_thou = 1000 * deaths / population,
+  ) %>%
+  filter(cases > 0, population > 0)
+
+print(US_state_totals %>%
+  slice_min(deaths_by_thou, n = 10)
+)
+```
+``` {r modeling}
+mod <- lm(deaths_by_thou ~ cases_by_thou, data = US_state_totals)
+
+US_tot_w_pred <- US_state_totals %>%
+  mutate(pred = predict(mod))
+
+US_tot_w_pred %>%
+  ggplot(  ) +
+  geom_point(aes(x = cases_by_thou, y = deaths_by_thou), color = "blue") +
+  geom_point(aes(x = cases_by_thou, y = pred), color = "red")
+```
+
+# NYPD data
+Data file address <https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD>
+
+# Summary of NYPD data
+``` {r nypd_summary_show}
+summary(nypd_data)
+
+```
+
+# Clean up of NYPD data
+``` {r nypd_cleanup}
+nypd_data_clean <- nypd_data %>%
+  # date type conversion
+  mutate(date = mdy(OCCUR_DATE)) %>%
+  # remove columns
+  select(-c(
+    # date - time, already extracted the date
+    OCCUR_DATE, OCCUR_TIME,
+    # geo part - not needed
+    X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat, 
+    # not needed now (probably)
+    LOC_CLASSFCTN_DESC, INCIDENT_KEY
+    )
+  )
+  
+```
+
+Summary of data after cleaning up
+
+``` {r clean_data_summary}
+summary(nypd_data_clean)
+
+```
+
+**If some data is missing** on later stage of project, I will come back and
+correct the transformation procedures, probably adding missing data
+from additional datasets, how it was shown in lecture with Population data.
+
+
+# COVID
+Data file loaded from this base URL
+"https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+
+individual data files
+"time_series_covid19_confirmed_US.csv",  "time_series_covid19_confirmed_global.csv", "time_series_covid19_deaths_US.csv",  "time_series_covid19_deaths_global.csv"

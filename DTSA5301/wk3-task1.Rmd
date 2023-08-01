@@ -1,0 +1,96 @@
+---
+title: "wk3-task1"
+author: "Serg"
+date: "2023-06-08"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The task
+
+Use R Markdown to create your own document containing:
+
+## a bulleted list with sub-bullets under at least one item :
+
+-   first top level bullet
+    -   sub item one
+    -   sub item two
+-   second top level bullet
+    -   sub item one
+    -   sub item two
+
+## a numbered list
+
+1.  first top level item
+2.  second top level item
+
+## Text formatting
+
+some words *italicized type*
+
+some words in **bold print**
+
+## two levels of headers
+
+### Header lv3
+
+and some text
+
+#### Header lv4
+
+and some text again
+
+## the results of some R code without showing the code
+
+Simple code below
+
+```{r first, echo=FALSE}
+x <- "Hello world"
+# print out the x
+print(x)
+```
+
+Simple code above
+
+## a table of text at least 3 columns wide and 3 rows long
+
+3x3 table definition below
+
+```{r tabwork}
+df <- data.frame( 
+  Name = c("Bill", "John", "Mark"),
+  City = c("Boulder", "New York", "Colorado"),
+  LastName = c("Smith", "Gray", "White")
+)
+
+print(df)
+
+knitr::kable(df, format = "html")
+```
+
+and that's all for the table
+
+## a plot (show the code that generates the plot)
+
+Plot generation code below
+
+```{r pressure, echo=TRUE}
+plot(pressure)
+```
+
+above was the plot code
+
+## your session info (as output from R)
+
+my session info
+
+```{r final, eval=TRUE}
+sessionInfo()
+```
+
+session info finished
