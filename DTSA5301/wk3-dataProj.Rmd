@@ -1,5 +1,5 @@
 ---
-title: "wk3-NYPD project"
+title: "wk3 COVID data project"
 author: "Serg"
 date: "2023-06-08"
 output:
@@ -16,7 +16,24 @@ library(lubridate)
 
 ```
 
-``` {r covid_init}
+# COVID Info intro
+
+This file follows the examples shown during lectures for "Data Science as a field" course.
+
+Command output is included in most cases for educational purposes, so the whole report looks a bit untidy.
+
+Data files are loaded from this base URL "<https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/>"
+
+individual data files:
+
+-   "time_series_covid19_confirmed_US.csv",
+-   "time_series_covid19_confirmed_global.csv",
+-   "time_series_covid19_deaths_US.csv",
+-   "time_series_covid19_deaths_global.csv"
+
+And this lookup file "<https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv>"
+
+```{r covid_init}
 url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
 
 file_names <- c(
@@ -32,7 +49,7 @@ uid_data_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/maste
 
 Load data from URLs
 
-``` {r import_data}
+```{r import_data}
 global_cases <- read_csv(urls[1])
 global_deaths <- read_csv(urls[2], show_col_types = FALSE)
 us_cases <- read_csv(urls[3])
@@ -41,18 +58,10 @@ us_deaths <- read_csv(urls[4])
 uid_data <- read_csv(uid_data_url) %>%
   select(-c(Lat,Long_,Combined_Key,iso2, iso3, Admin2, code3))
 ```
-``` {r nypd_import}
-
-nypd_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
-
-nypd_data <- read_csv(nypd_url)
-
-```
-
 
 Clean up data
 
-``` {r tidy_global_data}
+```{r tidy_global_data}
 global_cases <- global_cases %>%
   pivot_longer(
     cols = -c(
@@ -103,7 +112,7 @@ US <- US_cases %>%
 
 Transform data
 
-``` {r transform_global}
+```{r transform_global}
 # rename cols ,for convenience & fix data format
 global_data <- global_cases %>%
   full_join(global_deaths) %>%
@@ -142,7 +151,7 @@ global_data <- global_data %>%
   )
 ```
 
-``` {r enrich data}
+```{r enrich data}
 US_by_state <- US %>%
   group_by( Province_State, Country_Region, date) %>%
   summarise(cases = sum(cases), 
@@ -167,7 +176,7 @@ US_totals <- US_by_state %>%
 
 ```
 
-``` {r visualize_us}
+```{r visualize_us}
 US_totals %>%
   filter(cases > 0) %>%
   ggplot(aes(x = date, y = cases)) +
@@ -182,7 +191,7 @@ US_totals %>%
 
 ```
 
-``` {r enrich_us }
+```{r enrich_us }
 US_by_state <- US_by_state %>%
   mutate(new_cases = cases - lag(cases),
          new_deaths = deaths - lag(deaths))
@@ -194,7 +203,8 @@ US_totals <- US_totals %>%
 ```
 
 Graph data of new cases / deaths for whole US
-``` {r visualize_us2}
+
+```{r visualize_us2}
 
 US_totals %>%
   filter(cases > 0) %>%
@@ -209,8 +219,10 @@ US_totals %>%
   labs(title = "COVID19 in US", y = NULL)
 
 ```
+
 Graph data of new cases / deaths for a state
-``` {r visualize_us3}
+
+```{r visualize_us3}
 state <- "New York"
 
 US_by_state %>%
@@ -240,7 +252,8 @@ print(US_state_totals %>%
   slice_min(deaths_by_thou, n = 10)
 )
 ```
-``` {r modeling}
+
+```{r modeling}
 mod <- lm(deaths_by_thou ~ cases_by_thou, data = US_state_totals)
 
 US_tot_w_pred <- US_state_totals %>%
@@ -252,48 +265,12 @@ US_tot_w_pred %>%
   geom_point(aes(x = cases_by_thou, y = pred), color = "red")
 ```
 
-# NYPD data
-Data file address <https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD>
+## session info
 
-# Summary of NYPD data
-``` {r nypd_summary_show}
-summary(nypd_data)
+The above report was generated using following environment (session info):
 
+```{r final, eval=TRUE}
+sessionInfo()
 ```
 
-# Clean up of NYPD data
-``` {r nypd_cleanup}
-nypd_data_clean <- nypd_data %>%
-  # date type conversion
-  mutate(date = mdy(OCCUR_DATE)) %>%
-  # remove columns
-  select(-c(
-    # date - time, already extracted the date
-    OCCUR_DATE, OCCUR_TIME,
-    # geo part - not needed
-    X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat, 
-    # not needed now (probably)
-    LOC_CLASSFCTN_DESC, INCIDENT_KEY
-    )
-  )
-  
-```
-
-Summary of data after cleaning up
-
-``` {r clean_data_summary}
-summary(nypd_data_clean)
-
-```
-
-**If some data is missing** on later stage of project, I will come back and
-correct the transformation procedures, probably adding missing data
-from additional datasets, how it was shown in lecture with Population data.
-
-
-# COVID
-Data file loaded from this base URL
-"https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
-
-individual data files
-"time_series_covid19_confirmed_US.csv",  "time_series_covid19_confirmed_global.csv", "time_series_covid19_deaths_US.csv",  "time_series_covid19_deaths_global.csv"
+session info finished
